@@ -8,6 +8,9 @@ import {Surfaces_Demo} from "./examples/surfaces-demo.js"
 import {Text_Demo} from "./examples/text-demo.js"
 import {Transforms_Sandbox} from "./examples/transforms-sandbox.js"
 import {Mars_Rover} from "./mars_rover.js";
+import {Shadow_Demo} from "./examples/shadow-demo.js"
+import {Control_Demo} from "./examples/control-demo.js"
+import {Mouse_Demo} from "./examples/mouse-demo.js"
 
 // Pull these names into this module's scope for convenience:
 const {
@@ -34,14 +37,17 @@ Object.assign(defs,
     {Surfaces_Demo},
     {Text_Demo},
     {Transforms_Sandbox},
-    {Mars_Rover}
+    {Mars_Rover},
+    {Shadow_Demo},
+    {Mouse_Demo},
+    {Control_Demo}
 );
 
 // ******************** End extra step
 
 // (Can define Main_Scene's class here)
 
-const Main_Scene = Mars_Rover;
+const Main_Scene = Shadow_Demo;
 const Additional_Scenes = [];
 
 export {Main_Scene, Additional_Scenes, Canvas_Widget, Code_Widget, Text_Widget, defs}

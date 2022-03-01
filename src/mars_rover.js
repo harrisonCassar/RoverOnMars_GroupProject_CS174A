@@ -1,5 +1,8 @@
 import {defs, tiny} from './examples/common.js';
 
+import {Color_Phong_Shader, Shadow_Textured_Phong_Shader,
+    Depth_Texture_Shader_2D, Buffered_Texture, LIGHT_DEPTH_TEX_SIZE} from './shadow-shaders.js'
+
 const {
     Vector, Vector3, vec, vec3, vec4, color, hex_color, Shader, Matrix, Mat4, Light, Shape, Material, Scene,
 } = tiny;
@@ -323,6 +326,8 @@ export class Mars_Rover extends Scene {
         const offset = (start_at_min ? -1 : 1) * Math.PI/2;          
         return min + (0.5*(max-min) + 0.5*(max-min)*Math.sin(frequency*this.t + offset));
     }
+
+    render_world(context, program_state, sha)
 
     display(context, program_state) {
         // display():  Called once per frame of animation.
