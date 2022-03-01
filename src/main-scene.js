@@ -7,7 +7,9 @@ import {Scene_To_Texture_Demo} from "./examples/scene-to-texture-demo.js"
 import {Surfaces_Demo} from "./examples/surfaces-demo.js"
 import {Text_Demo} from "./examples/text-demo.js"
 import {Transforms_Sandbox} from "./examples/transforms-sandbox.js"
-import {Mars_Rover} from "./mars_rover.js";
+import {Mars_Rover} from "./mars_rover.js"
+import {Mars_Rover_Shadow} from "./mars_rover_shadow.js"
+import {Mars_Rover_Shadows_Attempted} from "./mars_rover_shadows_attempted.js"
 import {Shadow_Demo} from "./examples/shadow-demo.js"
 import {Control_Demo} from "./examples/control-demo.js"
 import {Mouse_Demo} from "./examples/mouse-demo.js"
@@ -38,6 +40,8 @@ Object.assign(defs,
     {Text_Demo},
     {Transforms_Sandbox},
     {Mars_Rover},
+    {Mars_Rover_Shadow},
+    {Mars_Rover_Shadows_Attempted},
     {Shadow_Demo},
     {Mouse_Demo},
     {Control_Demo}
@@ -47,7 +51,8 @@ Object.assign(defs,
 
 // (Can define Main_Scene's class here)
 
-const Main_Scene = Shadow_Demo;
+//const Main_Scene = Mars_Rover_Shadows_Attempted;
+const Main_Scene = Mars_Rover_Shadow;
 const Additional_Scenes = [];
 
 export {Main_Scene, Additional_Scenes, Canvas_Widget, Code_Widget, Text_Widget, defs}
