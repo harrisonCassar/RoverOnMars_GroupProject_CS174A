@@ -362,9 +362,13 @@ export class Mars_Rover extends Scene {
             this.shapes.sphere.draw(context, program_state,
                 Mat4.translation(light_position[0], light_position[1], light_position[2]).times(Mat4.scale(100,100,100)),
                 this.light_src.override({color: light_color}));
-            this.shapes.sphere.draw(context, program_state,
-                Mat4.translation(this.light_position[0], this.light_position[1], this.light_position[2]).times(Mat4.scale(.5,.5,.5)),
-                this.light_src.override({color: light_color}));
+            
+            if (this.DEBUG)
+            {
+                this.shapes.sphere.draw(context, program_state,
+                    Mat4.translation(this.light_position[0], this.light_position[1], this.light_position[2]).times(Mat4.scale(.5,.5,.5)),
+                    this.light_src.override({color: light_color}));
+            }
         }
 
         // draw rovers
