@@ -36,7 +36,7 @@ export class Mars_Rover_Shadow extends Scene {
         // setup class configurable parameters
         this.DEBUG = false; // enable debugging features (i.e. ambient light high for visibility)
         this.SUN_PERIOD = 5;
-        this.SUN_MORNING_POS = 5*Math.PI/4;
+        this.SUN_MORNING_POS = 5.5*Math.PI/4;
         this.SUN_DAY_POS = 3*Math.PI/2;
         this.SUN_NIGHT_POS = Math.PI/2;
         
@@ -63,7 +63,7 @@ export class Mars_Rover_Shadow extends Scene {
             rover_wheel_right: new Shape_From_File("assets/rover_wheel_right.obj")
         };
 
-        // // *** Materials
+        // *** Materials
         // this.materials = {
         //     sun: new Material(new defs.Phong_Shader(),
         //         {ambient: this.DEBUG ? 1.0 : 1.0, diffusivity: .6, color: hex_color("#ffffff")}),
@@ -78,7 +78,7 @@ export class Mars_Rover_Shadow extends Scene {
         // ************************ SHADOWS ***************************
         // For the floor or other plain objects
         this.floor = new Material(new Shadow_Textured_Phong_Shader(1), {
-            color: color(1, 1, 1, 1), ambient: .3, diffusivity: 0.6, specularity: 0.4, smoothness: 64,
+            color: color(1, 1, 1, 1), ambient: .3, diffusivity: 0.6, specularity: 0.9, smoothness: 64,
             color_texture: null,
             light_depth_texture: null
         })
@@ -100,7 +100,7 @@ export class Mars_Rover_Shadow extends Scene {
         // ************************ SHADOWS ***************************
 
         // setup state
-        this.camera_pos_global = Mat4.identity().times(Mat4.rotation(Math.PI/4, 1, 0, 0)).times(Mat4.translation(0,-300,-300));
+        // this.camera_pos_global = Mat4.identity().times(Mat4.rotation(Math.PI/4, 1, 0, 0)).times(Mat4.translation(0,-300,-300)); // REMOVED due to issues with shading artifacts present with "faking" the light source to allow it to be closer to our rover
         this.rover_pos = Mat4.identity();
         this.rover_base_lateral_speed_factor = 0.15;
         this.rover_base_spin_speed_factor = 1;
@@ -114,23 +114,82 @@ export class Mars_Rover_Shadow extends Scene {
     }
 
     make_control_panel() {
-        // // make_control_panel(): Sets up a panel of interactive HTML elements, including
-        // // buttons with key bindings for affecting this scene, and live info readouts.
-        // this.control_panel.innerHTML += "Dragonfly rotation angle: ";
-        // // The next line adds a live text readout of a data member of our Scene.
-        // this.live_string(box => {
-        //     box.textContent = (this.hover ? 0 : (this.t % (2 * Math.PI)).toFixed(2)) + " radians"
-        // });
-        // this.new_line();
-        // this.new_line();
-        // // Add buttons so the user can actively toggle data members of our Scene:
-        // this.key_triggered_button("Hover dragonfly in place", ["h"], function () {
-        //     this.hover ^= 1;
-        // });
-        // this.new_line();
-        // this.key_triggered_button("Swarm mode", ["m"], function () {
-        //     this.swarm ^= 1;
-        // });
+        // Draw the scene's buttons, setup their actions and keyboard shortcuts, and monitor live measurements.
+        this.key_triggered_button( "Move Left", [ "j" ], this.move_left );
+        this.key_triggered_button( "Move Right", [ "l" ], this.move_right );
+        this.new_line();
+        this.key_triggered_button( "Move Forward", [ "i" ], this.move_forward );
+        this.key_triggered_button( "Move Back", [ "k" ], this.move_backward );
+        this.new_line();
+        this.new_line();
+
+        this.key_triggered_button( "1st Person View", [ "8" ], () => this.cur_camera = () => this.camera_pos_first_person );
+        this.key_triggered_button( "3rd Person View", [ "9" ], () => this.cur_camera = () => this.camera_pos_third_person );
+        this.new_line();
+        this.new_line();
+
+        this.key_triggered_button( "Toggle Day/Night Cycle", [ "z" ], () => this.enable_day_night_cycle = !(this.enable_day_night_cycle));
+        this.key_triggered_button( "Set Morning", [ "x" ], () => this.cur_day_night = this.SUN_MORNING_POS );
+        this.key_triggered_button( "Set Day", [ "c" ], () => this.cur_day_night = this.SUN_DAY_POS );
+        this.key_triggered_button( "Set Night", [ "v" ], () => this.cur_day_night = this.SUN_NIGHT_POS );
+        this.new_line();
+        this.new_line();
+
+        const day_night_cycle_controls = this.control_panel.appendChild(document.createElement("span"));
+        this.key_triggered_button("-", [ "Control", "n"], () =>
+            this.sun_period -= 1.0, undefined, undefined, undefined, day_night_cycle_controls);
+        this.key_triggered_button("+", [ "Control", "m" ], () =>
+            this.sun_period += 1.0, undefined, undefined, undefined, day_night_cycle_controls);
+        this.live_string(box => {
+            box.textContent = " Day/Night Period: " + this.sun_period.toFixed(2)
+        }, day_night_cycle_controls);
+        this.new_line();
+        this.new_line();
+
+        const lateral_speed_controls = this.control_panel.appendChild(document.createElement("span"));
+        this.key_triggered_button("-", [ "n" ], () =>
+            this.rover_user_lateral_speed_factor /= 1.2, undefined, undefined, undefined, lateral_speed_controls);
+        this.key_triggered_button("+", [ "m" ], () =>
+            this.rover_user_lateral_speed_factor *= 1.2, undefined, undefined, undefined, lateral_speed_controls);
+        this.live_string(box => {
+            box.textContent = "Lateral Speed: " + this.rover_user_lateral_speed_factor .toFixed(2)
+        }, lateral_speed_controls);
+        this.new_line();
+
+        const speed_controls = this.control_panel.appendChild(document.createElement("span"));
+        this.key_triggered_button("-", [ "Control", "n"], () =>
+            this.rover_user_spin_speed_factor /= 1.2, undefined, undefined, undefined, speed_controls);
+        this.key_triggered_button("+", [ "Control", "m" ], () =>
+            this.rover_user_spin_speed_factor *= 1.2, undefined, undefined, undefined, speed_controls);
+        this.live_string(box => {
+            box.textContent = " Spin Speed: " + this.rover_user_spin_speed_factor.toFixed(2)
+        }, speed_controls);
+        this.new_line();
+        this.new_line();
+    }
+
+    move_left()
+    {
+        let speed_factor = this.rover_user_spin_speed_factor*this.rover_base_spin_speed_factor;
+        this.rover_pos = this.rover_pos.times(Mat4.rotation(speed_factor*1*Math.PI/180, 0, 1, 0));
+    }
+
+    move_right()
+    {
+        let speed_factor = this.rover_user_spin_speed_factor*this.rover_base_spin_speed_factor;
+        this.rover_pos = this.rover_pos.times(Mat4.rotation(speed_factor*1*Math.PI/180, 0, -1, 0));
+    }
+
+    move_forward()
+    {
+        let speed_factor = this.rover_user_lateral_speed_factor*this.rover_base_lateral_speed_factor;
+        this.rover_pos = this.rover_pos.times(Mat4.translation(0,0,speed_factor*-1));
+    }
+
+    move_backward()
+    {
+        let speed_factor = this.rover_user_lateral_speed_factor*this.rover_base_lateral_speed_factor;
+        this.rover_pos = this.rover_pos.times(Mat4.translation(0,0,speed_factor*1));
     }
 
     texture_buffer_init(gl) {
@@ -283,20 +342,28 @@ export class Mars_Rover_Shadow extends Scene {
         // draw_light_source: true if we want to draw the light source.
         // draw_shadow: true if we want to draw the shadow
 
+        // update camera positions
+        this.camera_pos_first_person = Mat4.inverse(this.rover_pos.times(Mat4.translation(0,2,-1.5)));//Mat4.look_at(vec3(0, 10, 20), vec3(0, 5, 0), vec3(0, 1, 0));
+        this.camera_pos_third_person = Mat4.inverse(this.rover_pos.times(Mat4.translation(0,5,16.5)).times(Mat4.rotation(-Math.PI/32, 1, 0, 0)));
+
         // init mt buffers
         let mt_rover = Mat4.identity();
-        let mt_sun = Mat4.identity();
         let mt_crystal = Mat4.identity();
 
         // access relevant light properties
-        let light_position = this.light_position;
+        let light_position = this.sun_light_pos;
         let light_color = this.light_color;
 
         program_state.draw_shadow = draw_shadow;
 
+        // draw light source
         if (draw_light_source && shadow_pass) {
+            // sphere representing Sun (this is NOT the location of the true light source used for shadows, as we're "faking" them with a closer light source)
             this.shapes.sphere.draw(context, program_state,
-                Mat4.translation(light_position[0], light_position[1], light_position[2]).times(Mat4.scale(.5,.5,.5)),
+                Mat4.translation(light_position[0], light_position[1], light_position[2]).times(Mat4.scale(100,100,100)),
+                this.light_src.override({color: light_color}));
+            this.shapes.sphere.draw(context, program_state,
+                Mat4.translation(this.light_position[0], this.light_position[1], this.light_position[2]).times(Mat4.scale(.5,.5,.5)),
                 this.light_src.override({color: light_color}));
         }
 
@@ -308,6 +375,13 @@ export class Mars_Rover_Shadow extends Scene {
 
         // draw crystals
         this.draw_crystals(context, program_state, mt_crystal, shadow_pass);
+
+        // update camera attachment
+        if (this.cur_camera != undefined)
+        {
+            let desired = this.cur_camera();
+            program_state.camera_inverse = desired.map((x,i) => Vector.from(program_state.camera_inverse[i]).mix(x,0.3));
+        }
     }
 
     display(context, program_state) {
@@ -336,32 +410,28 @@ export class Mars_Rover_Shadow extends Scene {
             )); // Locate the camera here
         }
 
-        // The position of the light
-        // lights
+        // lights and light properties (for use by shading)
+        let rover_cur_pos = this.rover_pos.times(vec4(1, 1, 1, 1)); // need to spawn lights relative to rover (for our "faking" shading purposes)
         let sun_frequency = 2*Math.PI/this.sun_period;
         let angular_pos = this.enable_day_night_cycle ? t*sun_frequency : this.cur_day_night;
-        let mt_sun = Mat4.identity().times(Mat4.rotation(angular_pos, 0, 0, 1)).times(Mat4.translation(-10,0,0)).times(Mat4.scale(50,50,50));
-        //this.shapes.sphere3.draw(context, program_state, mt_sun, this.materials.sun);
+        let mt_sun_pre_translate = Mat4.identity().times(Mat4.translation(rover_cur_pos[0],rover_cur_pos[1],rover_cur_pos[2])).times(Mat4.rotation(angular_pos, 0, 0, 1));
+        this.tmp = mt_sun_pre_translate.times(Mat4.translation(-10,0,0));
+        this.sun_light_pos = mt_sun_pre_translate.times(Mat4.translation(-1000,0,0)).times(vec4(0, 0, 0, 1));
+        // const amb_light_pos = vec4(0, 100, 0, 1); // REMOVED, as shading seems to cause complications with more than 1 light source :(
 
-        const sun_light_pos = mt_sun.times(vec4(1, 1, 1, 1));
-        const amb_light_pos = vec4(0, 100, 0, 1);
-
-        this.light_position = sun_light_pos; //Mat4.rotation(t / 1.5, 0, 1, 0).times(vec4(3, 6, 0, 1));
-        // The color of the light
         this.light_color = color(1,1,1,1);
+        this.light_position = mt_sun_pre_translate.times(Mat4.translation(-10,0,0)).times(vec4(0, 0, 0, 1)); //Mat4.rotation(t / 1.5, 0, 1, 0).times(vec4(3, 15, 0, 1));
+        this.light_view_target = this.rover_pos.times(vec4(0, 0, 0, 1)); // This is a rough target of the light. Although the light is point light, we need a target to set the POV of the light
+        this.light_field_of_view = 150 * Math.PI / 180; // 130 degree
 
-        // This is a rough target of the light.
-        // Although the light is point light, we need a target to set the POV of the light
-        this.light_view_target = vec4(0, 0, 0, 1);
-        this.light_field_of_view = 130 * Math.PI / 180; // 130 degree
+        program_state.lights = [new Light(this.sun_light_pos, this.light_color, 10**25), new Light(this.light_position, this.light_color, 10**25)];
 
-        program_state.lights = [new Light(this.light_position, this.light_color, 10**25)];
-
+        /****************** SHADING STEPS ******************/
         // Step 1: set the perspective and camera to the POV of light
         const light_view_mat = Mat4.look_at(
             vec3(this.light_position[0], this.light_position[1], this.light_position[2]),
             vec3(this.light_view_target[0], this.light_view_target[1], this.light_view_target[2]),
-            vec3(0, 1, 0), // assume the light to target will have a up dir of +y, maybe need to change according to your case
+            vec3(0, -1, 0), // assume the light to target will have a up dir of +y, maybe need to change according to your case
         );
         const light_proj_mat = Mat4.perspective(this.light_field_of_view, 1, 0.5, 1000);
         // Bind the Depth Texture Buffer
@@ -380,22 +450,20 @@ export class Mars_Rover_Shadow extends Scene {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
         program_state.view_mat = program_state.camera_inverse;
-        program_state.projection_transform = Mat4.perspective(Math.PI / 4, context.width / context.height, 0.5, 500);
+        program_state.projection_transform = Mat4.perspective(Math.PI / 4, context.width / context.height, 0.5, 1000);
         this.render_scene(context, program_state, true, true, true);
 
         // Step 3: display the textures
-        this.shapes.square_2d.draw(context, program_state,
-            Mat4.translation(-.99, .08, 0).times(
-            Mat4.scale(0.5, 0.5 * gl.canvas.width / gl.canvas.height, 1)
-            ),
-            this.depth_tex.override({texture: this.lightDepthTexture})
-        );
+        if (this.DEBUG)
+        {
+            this.shapes.square_2d.draw(context, program_state,
+                Mat4.translation(-.99, .08, 0).times(
+                Mat4.scale(0.5, 0.5 * gl.canvas.width / gl.canvas.height, 1)
+                ),
+                this.depth_tex.override({texture: this.lightDepthTexture})
+            );
+        }
+        /****************** SHADING STEPS ******************/
     }
-
-    // show_explanation(document_element) {
-    //     document_element.innerHTML += "<p>This demo loads an external 3D model file of a teapot.  It uses a condensed version of the \"webgl-obj-loader.js\" "
-    //         + "open source library, though this version is not guaranteed to be complete and may not handle some .OBJ files.  It is contained in the class \"Shape_From_File\". "
-    //         + "</p><p>One of these teapots is lit with bump mapping.  Can you tell which one?</p>";
-    // }
 }
 
