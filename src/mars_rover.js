@@ -45,6 +45,11 @@ export class Mars_Rover extends Scene {
         this.COLOR_ROVER_WHEEL_IDX = 1;
         this.COLOR_ROVER_SOLAR_PANELS_IDX = 2;
         this.COLOR_ROVER_RADIO_IDX = 3;
+        this.CAMERA_NULL = 0;
+        this.CAMERA_FIRST = 1;
+        this.CAMERA_THIRD = 2;
+        this.CAMERA_THIRD_SKY = 3;
+        this.CAMERA_GLOBAL = 4;
         
         // Load the model file:
         this.shapes = {
@@ -71,18 +76,6 @@ export class Mars_Rover extends Scene {
             // radio
             rover_radio: new Shape_From_File("assets/rover_radio.obj")
         };
-
-        // *** Materials
-        // this.materials = {
-        //     sun: new Material(new defs.Phong_Shader(),
-        //         {ambient: this.DEBUG ? 1.0 : 1.0, diffusivity: .6, color: hex_color("#ffffff")}),
-        //     rover: new Material(new defs.Phong_Shader(),
-        //         {ambient: this.DEBUG ? 1.0 : 0.5, diffusivity: 1.0, specularity: 0.5, color: hex_color("ffa436")}),
-        //     mars: new Material(new defs.Phong_Shader(),
-        //         {ambient: this.DEBUG ? 1.0 : 0.3, diffusivity: 0.6, specularity: 0.3, color: hex_color("ffa436")}),
-        //     crystal: new Material(new defs.Phong_Shader(),
-        //         {ambient: this.DEBUG ? 1.0 : 0.0, diffusivity: 0.8, specularity: 1.0, color: color(1, 0.43, 0.91, 0.7)})
-        // }
 
         // ************************ SHADOWS ***************************
         // For the floor or other plain objects
@@ -143,30 +136,42 @@ export class Mars_Rover extends Scene {
         this.init_ok = false;
         // ************************ SHADOWS ***************************
 
-        // setup state
+        // ************************ STATE SETUP ***************************
+        // camera
+        this.camera_pos_first_person = Mat4.identity();
+        this.camera_pos_third_person = Mat4.identity();
+        this.camera_pos_sky_third_person = Mat4.identity();
         this.camera_pos_global = Mat4.identity().times(Mat4.rotation(Math.PI/4, 1, 0, 0)).times(Mat4.translation(0,-300,-300)); // REMOVED due to issues with shading artifacts present with "faking" the light source to allow it to be closer to our rover
+        this.f_cur_camera = this.CAMERA_THIRD;
+        this.cur_camera = () => this.camera_pos_third_person;
+
+        // rover pos and movement
         this.rover_pos = Mat4.identity();
         this.rover_base_lateral_speed_factor = 0.15;
         this.rover_base_spin_speed_factor = 1;
-        this.moved_forward = false;
-        this.moved_backward = false;
         this.rover_user_lateral_speed_factor = 1;
         this.rover_user_spin_speed_factor = 1;
-        this.enable_day_night_cycle = true;
-        this.cur_day_night = this.SUN_MORNING_POS;
-        this.sun_period = this.SUN_PERIOD;
-
-        this.canvas;
-        this.music = new Audio();
-        this.activated = false;
-        this.hasListener = false;
-
         this.f_move_left = false;
         this.f_move_right = false;
         this.f_move_forward = false;
         this.f_move_backward = false;
 
+        // day/night
+        this.enable_day_night_cycle = true;
+        this.cur_day_night = this.SUN_MORNING_POS;
+        this.sun_period = this.SUN_PERIOD;
+
+        // mouse picking
+        this.canvas;
+        this.music = new Audio();
+        this.activated = false;
+        this.hasListener = false;
+        this.init_mouse_picking_bounds();
+
+        // rover coloring
         this.init_rover_colors();
+
+        // ************************ STATE SETUP ***************************
     }
     
     get_random_color() {
@@ -187,6 +192,13 @@ export class Mars_Rover extends Scene {
         this.rover_body_colors = [COLOR_ROVER_BODY, COLOR_ROVER_WHEEL, COLOR_ROVER_SOLAR_PANELS, COLOR_ROVER_RADIO];
     }
 
+    init_mouse_picking_bounds() {
+        this.left_bound = Infinity;
+        this.right_bound = -Infinity;
+        this.top_bound = -Infinity;
+        this.bottom_bound = Infinity;
+    }
+
     make_control_panel() {
         // Draw the scene's buttons, setup their actions and keyboard shortcuts, and monitor live measurements.
         this.key_triggered_button( "Move Left", [ "j" ], () => this.f_move_left = true, '#6E6460', () => this.f_move_left = false);
@@ -197,10 +209,10 @@ export class Mars_Rover extends Scene {
         this.new_line();
         this.new_line();
 
-        this.key_triggered_button( "1st Person View", [ "7" ], () => this.cur_camera = () => this.camera_pos_first_person );
-        this.key_triggered_button( "3rd Person View", [ "8" ], () => this.cur_camera = () => this.camera_pos_third_person );
-        this.key_triggered_button( "Sky 3rd Person View", [ "9" ], () => this.cur_camera = () => this.camera_pos_sky_third_person );
-        this.key_triggered_button( "Global View", [ "0" ], () => this.cur_camera = () => this.camera_pos_global );
+        this.key_triggered_button( "1st Person View", [ "7" ], () => { this.cur_camera = () => this.camera_pos_first_person; this.f_cur_camera = this.CAMERA_FIRST} );
+        this.key_triggered_button( "3rd Person View", [ "8" ], () => { this.cur_camera = () => this.camera_pos_third_person; this.f_cur_camera = this.CAMERA_THIRD} );
+        this.key_triggered_button( "Sky 3rd Person View", [ "9" ], () => { this.cur_camera = () => this.camera_pos_sky_third_person; this.f_cur_camera = this.CAMERA_THIRD_SKY} );
+        this.key_triggered_button( "Global View", [ "0" ], () => { this.cur_camera = () => this.camera_pos_global; this.f_cur_camera = this.CAMERA_GLOBAL} );
         this.new_line();
         this.new_line();
 
@@ -511,21 +523,27 @@ export class Mars_Rover extends Scene {
 
         // provide support for mouse picking
         this.canvas = context.canvas;
-        let left_bound = 0;//-0.5
-        let right_bound = 0.15;//0.5
-        let top_bound = -0.35;//0.5
-        let bottom_bound = -0.65;//-0.5
+
+        if (this.f_cur_camera == this.CAMERA_THIRD) {
+            this.left_bound = 0;
+            this.right_bound = 0.15;
+            this.top_bound = -0.35;
+            this.bottom_bound = -0.65;
+        }
+        else if (this.f_cur_camera == this.CAMERA_THIRD_SKY) {
+            this.left_bound = 0.375;
+            this.right_bound = 0.53;
+            this.top_bound = -0.225;
+            this.bottom_bound = -0.475;
+        }
+        else {
+            this.init_mouse_picking_bounds();
+        }
 
         const mouse_position = (e, rect = this.canvas.getBoundingClientRect()) =>
             vec((e.clientX - (rect.left + rect.right) / 2) / ((rect.right - rect.left) / 2),
                 (e.clientY - (rect.bottom + rect.top) / 2) / ((rect.top - rect.bottom) / 2));
         
-        /*if (this.cur_camera != this.camera_pos_third_person){
-            let left_bound = 0;//-0.5
-            let right_bound = 0.15;//0.5
-            let top_bound = -0.35;//0.5
-            let bottom_bound = -0.65;//-0.5
-        }*/
         if (!this.hasListener) {
             this.hasListener = true;
             this.canvas.addEventListener("click", e => {
@@ -534,8 +552,8 @@ export class Mars_Rover extends Scene {
                 //console.log(pos);
                 let pos_x = pos[0];
                 let pos_y = pos[1];
-                let inside_x = ((pos_x >= left_bound) && (pos_x <= right_bound));
-                let inside_y = ((pos_y >= bottom_bound) && (pos_y <= top_bound));
+                let inside_x = ((pos_x >= this.left_bound) && (pos_x <= this.right_bound));
+                let inside_y = ((pos_y >= this.bottom_bound) && (pos_y <= this.top_bound));
                 if (inside_x && inside_y) {
                     if (!this.activated) {
                         this.activated = true;
