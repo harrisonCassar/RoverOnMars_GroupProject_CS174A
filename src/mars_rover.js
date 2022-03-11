@@ -36,11 +36,12 @@ export class Mars_Rover extends Scene {
         // setup class configurable parameters
         this.DEBUG = false; // enable debugging features (i.e. ambient light high for visibility)
         this.SUN_PERIOD = 5;
-        this.SUN_MORNING_POS = 5.5*Math.PI/4;
+        this.SUN_MORNING_POS = 5*Math.PI/4;
         this.SUN_DAY_POS = 3*Math.PI/2;
         this.SUN_NIGHT_POS = Math.PI/2;
         this.COLLISION_HITBOX_WIDTH = 2.5;
         this.COLLISION_MAGIC_WORKY = 0.5;
+        this.WALL_BOUNDING_BOXES = [[[-4.7, -27.6], [55, -85]], [[452, -470], [276, 443]], [[276, 443], [-548, 327]], [[-388, 325], [-538, -530]], [[-367, -389], [489, -462]], [[84, -295.5], [-120, -388.7]], [[-231, 326], [-314, 213]], [[-89, 213], [-165, 115]], [[-154, -165], [-225, 7]], [[-220, 116], [-251, 186]]]; // TEST RECT (mars base): [[25, 129], [66, 171]]
 
         // setup state parameters
         this.COLOR_ROVER_BODY_IDX = 0;
@@ -52,7 +53,7 @@ export class Mars_Rover extends Scene {
         this.CAMERA_THIRD = 2;
         this.CAMERA_THIRD_SKY = 3;
         this.CAMERA_GLOBAL = 4;
-        this.CRYSTAL_MAX_NUM = 20;
+        this.CRYSTAL_MAX_NUM = 28;
 
         // Load the model file:
         this.shapes = {
@@ -64,6 +65,11 @@ export class Mars_Rover extends Scene {
             // environment objects
             sphere3: new defs.Subdivision_Sphere(3),
             crystal: new Shape_From_File("assets/crystal.obj"),
+            crystal_broken: new Shape_From_File("assets/crystal_broken.obj"),
+
+            // mars base pieces
+            base_middle: new Shape_From_File("assets/base_middle.obj"),
+            base: new Shape_From_File("assets/base.obj"),
 
             // terrain
             square: new defs.Square(),
@@ -144,8 +150,9 @@ export class Mars_Rover extends Scene {
         this.camera_pos_first_person = Mat4.identity();
         this.camera_pos_third_person = Mat4.identity();
         this.camera_pos_sky_third_person = Mat4.identity();
-        this.camera_pos_global = Mat4.identity().times(Mat4.rotation(Math.PI/4, 1, 0, 0)).times(Mat4.translation(0,-300,-300));
+        this.camera_pos_global = Mat4.identity().times(Mat4.rotation(Math.PI/4, 1, 0, 0)).times(Mat4.translation(25,-500,-600));
         this.cur_camera = () => this.camera_pos_third_person;
+        this.f_cur_camera = this.CAMERA_THIRD;
 
         // rover pos and movement
         this.rover_pos = Mat4.identity();
@@ -177,10 +184,15 @@ export class Mars_Rover extends Scene {
         this.init_rover_colors();
 
         // crystals
-        this.CRYSTAL_LOCATIONS = [[0,0,10], [-50, 0, 80], [-55, 0, 80], [-60, 0, 80], [-65, 0, 80], [-70, 0, 80], [-25, 0, -62], [-15, 0, -50], [-252, 0, 0], [-4, 0, -40], [20, 0, -30], [550, 0, -300], [0,2,0], [0,4,0], [0,6,0], [0,8,0], [0,10,0], [0,12,0], [0,14,0], [0,16,0]]; // [0,0,15], [0,0,20], [0,0,25], [0,0,-10], [0,0,30], [5,0,50], [0,14,0], [0,16,0]]; // 
+        this.CRYSTAL_LOCATIONS = [[484, 0, 236], [110, 0, 688], [-394, 0, 236], [-252, 0, 0], [190, 0, -260], [271, 0, -732], [502, 0, -730], [40, 0, -530], [-402, 0, -722], [-768, 0, -228], [-640, 0, 646], [-25, 0, -62], [-15, 0, -50], [-252, 0, 0], [-4, 0, -40], [20, 0, -30], [-712, 0, 636], [-758, 0, 560], [-466, 0, 18], [302, 0, 342], [550, 0, -300], [-424, 0, 636], [634, 0, -696], [520, 0, -466], [-50, 0, -422], [-482, 0, -340], [580, 0, -265], [-410, 0, 243]]; //[0,0,10], [-50, 0, 80], [-55, 0, 80], [-60, 0, 80], [-65, 0, 80], [-70, 0, 80], [-25, 0, -62], [-15, 0, -50], [-252, 0, 0], [-4, 0, -40], [20, 0, -30], [550, 0, -300], [0,2,0], [0,4,0], [0,6,0], [0,8,0], [0,10,0], [0,12,0], [0,14,0], [0,16,0]]; // [0,0,15], [0,0,20], [0,0,25], [0,0,-10], [0,0,30], [5,0,50], [0,14,0], [0,16,0]]; // 
         this.CRYSTAL_COLORS = [color(1, 0.43, 0.91, 0.7), color(1, 0.16, 0.16, 0.7), color(0.27, 0.58, 1, 0.7), color(0.4, 1, 0.87, 0.7), color(0.49, 1, 0.4, 0.7)];
-        this.CRYSTAL_LIVE = new Array(this.CRYSTAL_MAX_NUM).fill(true);
+        this.spawn_crystals();
 
+        // lofi
+        this.lofi_paused_time = 0;
+        this.f_lofi_playing = false;
+
+        // debugging
         this.last_pos = vec4(0,0,0,1);
         this.last_print = 0;
 
@@ -194,6 +206,10 @@ export class Mars_Rover extends Scene {
     randomize_rover_colors() {
         for (let i = 0; i < 4; i++)
             this.rover_body_colors[i] = this.get_random_color();
+    }
+
+    spawn_crystals() {
+        this.CRYSTAL_LIVE = new Array(this.CRYSTAL_MAX_NUM).fill(true);
     }
 
     init_rover_colors() {
@@ -216,7 +232,6 @@ export class Mars_Rover extends Scene {
         // Draw the scene's buttons, setup their actions and keyboard shortcuts, and monitor live measurements.
         this.key_triggered_button( "Move Left", [ "j" ], () => this.f_move_left = true, '#6E6460', () => this.f_move_left = false);
         this.key_triggered_button( "Move Right", [ "l" ], () => this.f_move_right = true, '#6E6460', () => this.f_move_right = false);
-        this.new_line();
         this.key_triggered_button( "Move Forward", [ "i" ], () => this.f_move_forward = true, '#6E6460', () => this.f_move_forward = false);
         this.key_triggered_button( "Move Back", [ "k" ], () => this.f_move_backward = true, '#6E6460', () => this.f_move_backward = false);
         this.new_line();
@@ -229,8 +244,9 @@ export class Mars_Rover extends Scene {
         this.new_line();
         this.new_line();
 
-        this.key_triggered_button("Change Colors", ["e"], this.randomize_rover_colors);
-        this.key_triggered_button("Set Original Colors", ["r"], this.init_rover_colors);
+        this.key_triggered_button("Change Rover Colors", ["e"], this.randomize_rover_colors);
+        this.key_triggered_button("Set Original Rover Colors", ["r"], this.init_rover_colors);
+        this.key_triggered_button("Respawn Crystals", [ "Control", "u"], this.spawn_crystals);
         this.new_line();
         this.new_line();
 
@@ -270,6 +286,12 @@ export class Mars_Rover extends Scene {
         this.live_string(box => {
             box.textContent = " Spin Speed: " + this.rover_user_spin_speed_factor.toFixed(2)
         }, speed_controls);
+        
+        const overall_speed_controls = this.control_panel.appendChild(document.createElement("span"));
+        this.key_triggered_button( "Set Fast Movement", [ "Control", "c" ], () => 
+            { this.rover_user_lateral_speed_factor = 6.19; this.rover_user_spin_speed_factor = 2.99;}, undefined, undefined, undefined, overall_speed_controls);
+        this.key_triggered_button( "Set Default Movement", [ "Control", "d" ], () => 
+            { this.rover_user_lateral_speed_factor = 1.00; this.rover_user_spin_speed_factor = 1.00;}, undefined, undefined, undefined, overall_speed_controls);
         this.new_line();
         this.new_line();
     }
@@ -305,11 +327,15 @@ export class Mars_Rover extends Scene {
         let dx = speed_factor*-1*Math.sin(this.rover_look_angle);
         let dz = speed_factor*-1*Math.cos(this.rover_look_angle);
 
-        this.rover_pos_x += dx;
-        this.rover_pos_z += dz;
+        if (!(this.check_wall_collision(dx, dz))) {
+            this.rover_pos_x += dx;
+            this.rover_pos_z += dz;
+            
+            // for shading
+            this.rover_pos = this.rover_pos.times(Mat4.translation(0,0,speed_factor*-1));
+        }
         
-        // for shading
-        this.rover_pos = this.rover_pos.times(Mat4.translation(0,0,speed_factor*-1));
+        
     }
 
     move_backward()
@@ -319,11 +345,54 @@ export class Mars_Rover extends Scene {
         let dx = speed_factor*1*Math.sin(this.rover_look_angle);
         let dz = speed_factor*1*Math.cos(this.rover_look_angle);
 
-        this.rover_pos_x += dx;
-        this.rover_pos_z += dz;
-        
-        // for shading
-        this.rover_pos = this.rover_pos.times(Mat4.translation(0,0,speed_factor*1));
+        if (!(this.check_wall_collision(dx, dz))) {
+            this.rover_pos_x += dx;
+            this.rover_pos_z += dz;
+            
+            // for shading
+            this.rover_pos = this.rover_pos.times(Mat4.translation(0,0,speed_factor*1));
+        }
+    }
+
+    check_wall_collision(dx, dz)
+    {
+        let new_rover_pos_x = this.rover_pos_x + dx;
+        let new_rover_pos_z = this.rover_pos_z + dz;
+
+        // check each wall
+        for (let i = 0; i < this.WALL_BOUNDING_BOXES.length; i++)
+        {
+            let wall_pos = this.WALL_BOUNDING_BOXES[i];
+            let max_bounds = this.get_max_bounds(wall_pos[0], wall_pos[1]);
+            //console.log(max_bounds);
+            let min_bounds = this.get_min_bounds(wall_pos[0], wall_pos[1]);
+            //console.log(min_bounds);
+
+            //console.log("New Rover Pos: " + String(new_rover_pos_x) + ", " + String(new_rover_pos_z));
+
+            // check if colliding
+            if ((new_rover_pos_x <= max_bounds[0]) &&
+                (new_rover_pos_x >= min_bounds[0]) &&
+                (new_rover_pos_z <= max_bounds[1]) &&
+                (new_rover_pos_z >= min_bounds[1]))
+            {
+                console.log("COLLISION!!");
+                return true;
+            }
+        }
+
+        // no collisions detected (valid move!)
+        return false;
+    }
+
+    get_max_bounds(p1, p2)
+    {
+        return [Math.max(p1[0], p2[0]), Math.max(p1[1], p2[1])];
+    }
+
+    get_min_bounds(p1, p2)
+    {
+        return [Math.min(p1[0], p2[0]), Math.min(p1[1], p2[1])];
     }
 
     texture_buffer_init(gl) {
@@ -412,23 +481,30 @@ export class Mars_Rover extends Scene {
         return min + (0.5*(max-min) + 0.5*(max-min)*Math.sin(frequency*this.t + offset));
     }
 
+    draw_mars_base(context, program_state, mt, shadow_pass)
+    {   
+        let mt_base = mt.times(Mat4.translation(45, 0, 150));
+        let mt_base_full = mt_base.times(Mat4.translation(0, -5, 0)).times(Mat4.scale(20,20,20));
+        this.shapes.base.draw(context, program_state, mt_base_full, shadow_pass ? this.materials.floor : this.pure);
+        
+        let mt_base_middle = mt_base.times(Mat4.translation(0, -1.85, 0)).times(Mat4.scale(13.5, 13.5, 13.5));
+        this.shapes.base_middle.draw(context, program_state, mt_base_middle, shadow_pass ? this.materials.floor.override({color: hex_color("fff305")}) : this.pure);
+    }
+
     draw_crystals(context, program_state, mt, shadow_pass)
     {
-        let mt_crystal = mt.times(Mat4.translation(0, -2.25, 0)).times(Mat4.scale(0.5,0.5,0.5));
+        let mt_crystal = mt.times(Mat4.translation(0, -2.25, 0));
 
         for (var i = 0; i < this.CRYSTAL_MAX_NUM; i++)
         {
-            if (this.CRYSTAL_LIVE[i])
-            {
-                let pos = this.CRYSTAL_LOCATIONS[i];
-                let color = this.CRYSTAL_COLORS[i % this.CRYSTAL_COLORS.length];
-                let mt_tmp = mt_crystal.times(Mat4.translation(pos[0], pos[1], pos[2]));
-                this.shapes.crystal.draw(context, program_state, mt_tmp, shadow_pass ? this.materials.crystal.override({color: color}) : this.pure);
-            }
-            else
-            {
-                //...spawn broken crystal model...
-            }
+            let pos = this.CRYSTAL_LOCATIONS[i];
+            let color = this.CRYSTAL_COLORS[i % this.CRYSTAL_COLORS.length];
+            let height_scale = this.CRYSTAL_LIVE[i] ? 0.5 : 1.75;
+            let mt_tmp = mt_crystal.times(Mat4.scale(0.5,height_scale,0.5)).times(Mat4.translation(pos[0], pos[1], pos[2]));
+
+            let shape = this.CRYSTAL_LIVE[i] ? this.shapes.crystal : this.shapes.crystal_broken;
+
+            shape.draw(context, program_state, mt_tmp, shadow_pass ? this.materials.crystal.override({color: color}) : this.pure);
         }
 
         return mt;
@@ -526,6 +602,7 @@ export class Mars_Rover extends Scene {
         // init mt buffers
         let mt_rover = Mat4.identity();
         let mt_crystal = Mat4.identity();
+        let mt_mars_base = Mat4.identity();
 
         // access relevant light properties
         let light_position = this.sun_light_pos;
@@ -559,6 +636,9 @@ export class Mars_Rover extends Scene {
 
         // draw sky
         this.shapes.sphere3.draw(context, program_state, Mat4.scale(1000, 1000, 1000), this.materials.sky);
+
+        // draw mars base
+        this.draw_mars_base(context, program_state, mt_mars_base, shadow_pass);
 
         // provide support for mouse picking
         this.canvas = context.canvas;
@@ -617,30 +697,48 @@ export class Mars_Rover extends Scene {
     }
 
     play_music() {
+
+        // load and play lofi
         this.music.src = "assets/lofi_mix.mp3";
         this.music.volume = 0.3;
         this.music.play();
+        this.music.currentTime = this.lofi_paused_time;
+
+        // set playing flag
+        this.f_lofi_playing = true;
     }
 
     pause_music() {
+
+        // save time
+        this.lofi_paused_time = this.music.currentTime;
+
+        // pause music
         this.music.pause();
+
+        // unset playing flag
+        this.f_lofi_playing = false;
+    }
+
+    play_pop() {
+
+        // play pop
+        this.music.src = "assets/crystal_pickup.mp3";
+        this.music.volume = 0.5;
+        this.music.play();
     }
 
     check_rover_crystal_collisions() {
-        //...check for collisions...
-
-        let rover_cur_pos = vec4(this.rover_pos_x, 0, this.rover_pos_z, 1);
-
-        // if (this.last_pos[0] != rover_cur_pos[0] || this.last_pos[2] != rover_cur_pos[2])
-        //     console.log("Current Rover Pos: " + String(rover_cur_pos[0]) + ", " + String(rover_cur_pos[1]) + ", " + String(rover_cur_pos[2]))
+        
+        // check each crystals
         for (let i = 0; i < this.CRYSTAL_MAX_NUM; i++)
         {
+            // only process if alive
             if (this.CRYSTAL_LIVE[i])
             {
                 let crystal_pos = this.CRYSTAL_LOCATIONS[i];
 
-                //let r = Math.sqrt(Math.pow(crystal_pos[0], 2) + Math.pow(crystal_pos[2], 2));
-
+                // check if colliding
                 if ((crystal_pos[0]*this.COLLISION_MAGIC_WORKY <= this.rover_pos_x + this.COLLISION_HITBOX_WIDTH) &&
                     (crystal_pos[0]*this.COLLISION_MAGIC_WORKY >= this.rover_pos_x - this.COLLISION_HITBOX_WIDTH) &&
                     (crystal_pos[2]*this.COLLISION_MAGIC_WORKY <= this.rover_pos_z + this.COLLISION_HITBOX_WIDTH) &&
@@ -649,12 +747,14 @@ export class Mars_Rover extends Scene {
                     // collect crystal
                     this.CRYSTAL_LIVE[i] = false;
 
-                    //console.log("CRYSTAL COLLECTED: " + String(i) + " at: " + String(crystal_pos[0]) + ", " + String(crystal_pos[2]));
+                    // play "pop" item pickup sound (if lofi is not playing)
+                    if (!this.f_lofi_playing)
+                        this.play_pop();
+
+                    console.log("CRYSTAL COLLECTED: " + String(i) + " at: " + String(crystal_pos[0]) + ", " + String(crystal_pos[2]));
                 }
             }
         }
-
-        //this.last_pos = rover_cur_pos;
     }
 
     display(context, program_state) {
