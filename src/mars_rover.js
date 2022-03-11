@@ -426,15 +426,21 @@ export class Mars_Rover extends Scene {
 
         // provide support for mouse picking
         this.canvas = context.canvas;
-        let left_bound = -0.5;
-        let right_bound = 0.5;
-        let top_bound = 0.5;
-        let bottom_bound = -0.5;
+        let left_bound = 0;//-0.5
+        let right_bound = 0.15;//0.5
+        let top_bound = -0.35;//0.5
+        let bottom_bound = -0.65;//-0.5
 
         const mouse_position = (e, rect = this.canvas.getBoundingClientRect()) =>
             vec((e.clientX - (rect.left + rect.right) / 2) / ((rect.right - rect.left) / 2),
                 (e.clientY - (rect.bottom + rect.top) / 2) / ((rect.top - rect.bottom) / 2));
-
+        
+        /*if (this.cur_camera != this.camera_pos_third_person){
+            let left_bound = 0;//-0.5
+            let right_bound = 0.15;//0.5
+            let top_bound = -0.35;//0.5
+            let bottom_bound = -0.65;//-0.5
+        }*/
         if (!this.hasListener) {
             this.hasListener = true;
             this.canvas.addEventListener("click", e => {
