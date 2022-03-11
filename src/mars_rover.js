@@ -44,6 +44,7 @@ export class Mars_Rover extends Scene {
         this.COLOR_ROVER_BODY_IDX = 0;
         this.COLOR_ROVER_WHEEL_IDX = 1;
         this.COLOR_ROVER_SOLAR_PANELS_IDX = 2;
+        this.COLOR_ROVER_RADIO_IDX = 3;
         
         // Load the model file:
         this.shapes = {
@@ -82,6 +83,14 @@ export class Mars_Rover extends Scene {
         //     crystal: new Material(new defs.Phong_Shader(),
         //         {ambient: this.DEBUG ? 1.0 : 0.0, diffusivity: 0.8, specularity: 1.0, color: color(1, 0.43, 0.91, 0.7)})
         // }
+
+        this.materials = {
+            sky: new Material(new Textured_Phong(), {
+                color: hex_color("#000000"),
+                ambient: 1.0, diffusivity: 0.1, specularity: 0.1,
+                texture: new Texture("assets/night_sky.jpg", "NEAREST")
+            })
+        }
 
         // ************************ SHADOWS ***************************
         // For the floor or other plain objects
@@ -133,7 +142,7 @@ export class Mars_Rover extends Scene {
     }
     
     randomize_rover_colors() {
-        for (let i = 0; i < 3; i++)
+        for (let i = 0; i < 4; i++)
             this.rover_body_colors[i] = this.get_random_color();
     }
 
@@ -141,8 +150,9 @@ export class Mars_Rover extends Scene {
         const COLOR_ROVER_BODY = hex_color("#fff652"); // yellow
         const COLOR_ROVER_WHEEL = hex_color("#858585"); // gray
         const COLOR_ROVER_SOLAR_PANELS = hex_color("#0015ff"); // darker blue
+        const COLOR_ROVER_RADIO = hex_color("#858585"); // gray
 
-        this.rover_body_colors = [COLOR_ROVER_BODY, COLOR_ROVER_WHEEL, COLOR_ROVER_SOLAR_PANELS];
+        this.rover_body_colors = [COLOR_ROVER_BODY, COLOR_ROVER_WHEEL, COLOR_ROVER_SOLAR_PANELS, COLOR_ROVER_RADIO];
     }
 
     make_control_panel() {
@@ -155,8 +165,9 @@ export class Mars_Rover extends Scene {
         this.new_line();
         this.new_line();
 
-        this.key_triggered_button( "1st Person View", [ "8" ], () => this.cur_camera = () => this.camera_pos_first_person );
-        this.key_triggered_button( "3rd Person View", [ "9" ], () => this.cur_camera = () => this.camera_pos_third_person );
+        this.key_triggered_button( "1st Person View", [ "7" ], () => this.cur_camera = () => this.camera_pos_first_person );
+        this.key_triggered_button( "3rd Person View", [ "8" ], () => this.cur_camera = () => this.camera_pos_third_person );
+        this.key_triggered_button( "Sky 3rd Person View", [ "9" ], () => this.cur_camera = () => this.camera_pos_sky_third_person );
         this.key_triggered_button( "Global View", [ "0" ], () => this.cur_camera = () => this.camera_pos_global );
         this.new_line();
         this.new_line();
@@ -335,8 +346,6 @@ export class Mars_Rover extends Scene {
     {
         // configurable parameters
         const SCALE_ROVER_BODY = 1.5;
-        const COLOR_ROVER_RADIO = hex_color("#858585"); // gray
-        const COLOR_ROVER_RADIOFILL = hex_color("#6d6d6d"); // dark gray
 
         // move rover to current (relative) world position
         let mt_rover = mt.times(this.rover_pos);
@@ -372,11 +381,11 @@ export class Mars_Rover extends Scene {
         }
 
         // radio
-        let mt_rover_radio = mt_rover.times(Mat4.translation(0.7,0.3,1.1)).times(Mat4.scale(0.5, 0.5, 0.5));
-        this.shapes.rover_radio.draw(context, program_state, mt_rover_radio, shadow_pass ? this.floor.override({color:COLOR_ROVER_RADIO}) : this.pure);
+        let mt_rover_radio = mt_rover.times(Mat4.translation(0.95,0.3,0.8)).times(Mat4.rotation(9*Math.PI/12, 0, 1, 0)).times(Mat4.scale(0.5, 0.5, 0.5));
+        this.shapes.rover_radio.draw(context, program_state, mt_rover_radio, shadow_pass ? this.floor.override({color:this.rover_body_colors[this.COLOR_ROVER_RADIO_IDX]}) : this.pure);
         
-        let radio_fill = mt_rover.times(Mat4.translation(0.9,-0.1,1.07)).times(Mat4.scale(0.5, 0.5, 0.1));
-        this.shapes.cube.draw(context, program_state, radio_fill, shadow_pass ? this.floor.override({color:COLOR_ROVER_RADIOFILL}) : this.pure);
+        let radio_fill = mt_rover.times(Mat4.translation(0.77,-0.1,0.702)).times(Mat4.rotation(9*Math.PI/12, 0, 1, 0)).times(Mat4.scale(0.535, 0.5, 0.125));
+        this.shapes.cube.draw(context, program_state, radio_fill, shadow_pass ? this.floor.override({color:this.rover_body_colors[this.COLOR_ROVER_RADIO_IDX]}) : this.pure);
 
         return mt;
     }
@@ -389,6 +398,7 @@ export class Mars_Rover extends Scene {
         // update camera positions
         this.camera_pos_first_person = Mat4.inverse(this.rover_pos.times(Mat4.translation(0,2,-1.5)));//Mat4.look_at(vec3(0, 10, 20), vec3(0, 5, 0), vec3(0, 1, 0));
         this.camera_pos_third_person = Mat4.inverse(this.rover_pos.times(Mat4.translation(0,5,16.5)).times(Mat4.rotation(-Math.PI/32, 1, 0, 0)));
+        this.camera_pos_sky_third_person = Mat4.inverse(this.rover_pos.times(Mat4.translation(-3,0,12)).times(Mat4.rotation(1.5*Math.PI/32, 1, 0, 0)));
 
         // init mt buffers
         let mt_rover = Mat4.identity();
@@ -423,6 +433,9 @@ export class Mars_Rover extends Scene {
 
         // draw crystals
         this.draw_crystals(context, program_state, mt_crystal, shadow_pass);
+
+        // draw sky
+        this.shapes.sphere3.draw(context, program_state, Mat4.scale(1000, 1000, 1000), this.materials.sky);
 
         // provide support for mouse picking
         this.canvas = context.canvas;
@@ -544,7 +557,7 @@ export class Mars_Rover extends Scene {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
         program_state.view_mat = program_state.camera_inverse;
-        program_state.projection_transform = Mat4.perspective(Math.PI / 4, context.width / context.height, 0.5, 1000);
+        program_state.projection_transform = Mat4.perspective(Math.PI / 4, context.width / context.height, 0.5, 2000);
         this.render_scene(context, program_state, true, true, true);
 
         // Step 3: display the textures
