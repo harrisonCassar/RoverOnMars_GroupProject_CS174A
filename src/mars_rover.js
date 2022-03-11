@@ -61,6 +61,9 @@ export class Mars_Rover extends Scene {
             rover_solar_panels: new Shape_From_File("assets/rover_solar_panels.obj"),
             rover_wheel_left: new Shape_From_File("assets/rover_wheel_left.obj"),
             rover_wheel_right: new Shape_From_File("assets/rover_wheel_right.obj")
+
+            // radio
+            //...
         };
 
         // *** Materials
@@ -100,7 +103,7 @@ export class Mars_Rover extends Scene {
         // ************************ SHADOWS ***************************
 
         // setup state
-        // this.camera_pos_global = Mat4.identity().times(Mat4.rotation(Math.PI/4, 1, 0, 0)).times(Mat4.translation(0,-300,-300)); // REMOVED due to issues with shading artifacts present with "faking" the light source to allow it to be closer to our rover
+        this.camera_pos_global = Mat4.identity().times(Mat4.rotation(Math.PI/4, 1, 0, 0)).times(Mat4.translation(0,-300,-300)); // REMOVED due to issues with shading artifacts present with "faking" the light source to allow it to be closer to our rover
         this.rover_pos = Mat4.identity();
         this.rover_base_lateral_speed_factor = 0.15;
         this.rover_base_spin_speed_factor = 1;
@@ -111,6 +114,11 @@ export class Mars_Rover extends Scene {
         this.enable_day_night_cycle = true;
         this.cur_day_night = this.SUN_MORNING_POS;
         this.sun_period = this.SUN_PERIOD;
+
+        this.canvas;
+        this.music = new Audio();
+        this.activated = false;
+        this.hasListener = false;
     }
 
     make_control_panel() {
@@ -125,6 +133,7 @@ export class Mars_Rover extends Scene {
 
         this.key_triggered_button( "1st Person View", [ "8" ], () => this.cur_camera = () => this.camera_pos_first_person );
         this.key_triggered_button( "3rd Person View", [ "9" ], () => this.cur_camera = () => this.camera_pos_third_person );
+        this.key_triggered_button( "Global View", [ "0" ], () => this.cur_camera = () => this.camera_pos_global );
         this.new_line();
         this.new_line();
 
@@ -334,6 +343,9 @@ export class Mars_Rover extends Scene {
             this.shapes.rover_wheel_right.draw(context, program_state, mt_tmp, shadow_pass ? this.floor.override({color:COLOR_ROVER_WHEEL}): this.pure);
         }
 
+        // radio
+        // ...
+
         return mt;
     }
 
@@ -380,12 +392,58 @@ export class Mars_Rover extends Scene {
         // draw crystals
         this.draw_crystals(context, program_state, mt_crystal, shadow_pass);
 
+        // provide support for mouse picking
+        this.canvas = context.canvas;
+        let left_bound = -0.5;
+        let right_bound = 0.5;
+        let top_bound = 0.5;
+        let bottom_bound = -0.5;
+
+        const mouse_position = (e, rect = this.canvas.getBoundingClientRect()) =>
+            vec((e.clientX - (rect.left + rect.right) / 2) / ((rect.right - rect.left) / 2),
+                (e.clientY - (rect.bottom + rect.top) / 2) / ((rect.top - rect.bottom) / 2));
+
+        if (!this.hasListener) {
+            this.hasListener = true;
+            this.canvas.addEventListener("click", e => {
+                e.preventDefault();
+                let pos = mouse_position(e);
+                //console.log(pos);
+                let pos_x = pos[0];
+                let pos_y = pos[1];
+                let inside_x = ((pos_x >= left_bound) && (pos_x <= right_bound));
+                let inside_y = ((pos_y >= bottom_bound) && (pos_y <= top_bound));
+                if (inside_x && inside_y) {
+                    if (!this.activated) {
+                        this.activated = true;
+                        //console.log("Playing music!");
+                        this.play_music();
+                    }
+                    else {
+                        this.activated = false;
+                        //console.log("Pausing music!");
+                        this.pause_music();
+                    }
+                }
+            });
+        }
+
         // update camera attachment
         if (this.cur_camera != undefined)
         {
             let desired = this.cur_camera();
             program_state.camera_inverse = desired.map((x,i) => Vector.from(program_state.camera_inverse[i]).mix(x,0.3));
         }
+    }
+
+    play_music() {
+        this.music.src = "assets/lofi_mix.mp3";
+        this.music.volume = 0.3;
+        this.music.play();
+    }
+
+    pause_music() {
+        this.music.pause();
     }
 
     display(context, program_state) {
