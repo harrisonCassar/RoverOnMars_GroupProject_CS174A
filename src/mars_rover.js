@@ -39,6 +39,8 @@ export class Mars_Rover extends Scene {
         this.SUN_MORNING_POS = 5.5*Math.PI/4;
         this.SUN_DAY_POS = 3*Math.PI/2;
         this.SUN_NIGHT_POS = Math.PI/2;
+        this.COLLISION_HITBOX_WIDTH = 2.5;
+        this.COLLISION_MAGIC_WORKY = 0.5;
 
         // setup state parameters
         this.COLOR_ROVER_BODY_IDX = 0;
@@ -50,7 +52,8 @@ export class Mars_Rover extends Scene {
         this.CAMERA_THIRD = 2;
         this.CAMERA_THIRD_SKY = 3;
         this.CAMERA_GLOBAL = 4;
-        
+        this.CRYSTAL_MAX_NUM = 20;
+
         // Load the model file:
         this.shapes = {
             "teapot": new Shape_From_File("assets/teapot.obj"),
@@ -92,7 +95,7 @@ export class Mars_Rover extends Scene {
             }),
             rover: new Material(new Shadow_Textured_Phong_Shader(1), {
                 color: hex_color("ffa436"),
-                ambient: this.DEBUG ? 1.0 : 0.5,
+                ambient: 0.5,
                 diffusivity: 0.6,
                 specularity: 0.9,
                 smoothness: 64,
@@ -101,7 +104,7 @@ export class Mars_Rover extends Scene {
             }),
             mars: new Material(new Shadow_Textured_Phong_Shader(1), {
                 color: hex_color("ffa436"),
-                ambient: this.DEBUG ? 1.0 : 0.3,
+                ambient: 0.3,
                 diffusivity: 0.6,
                 specularity: 0.3,
                 smoothness: 64,
@@ -110,7 +113,7 @@ export class Mars_Rover extends Scene {
             }),
             crystal: new Material(new Shadow_Textured_Phong_Shader(1), {
                 color: color(1, 0.43, 0.91, 0.7),
-                ambient: this.DEBUG ? 1.0 : 0.3,
+                ambient: 0.3,
                 diffusivity: 0.8,
                 specularity: 1.0,
                 smoothness: 64,
@@ -141,12 +144,14 @@ export class Mars_Rover extends Scene {
         this.camera_pos_first_person = Mat4.identity();
         this.camera_pos_third_person = Mat4.identity();
         this.camera_pos_sky_third_person = Mat4.identity();
-        this.camera_pos_global = Mat4.identity().times(Mat4.rotation(Math.PI/4, 1, 0, 0)).times(Mat4.translation(0,-300,-300)); // REMOVED due to issues with shading artifacts present with "faking" the light source to allow it to be closer to our rover
-        this.f_cur_camera = this.CAMERA_THIRD;
+        this.camera_pos_global = Mat4.identity().times(Mat4.rotation(Math.PI/4, 1, 0, 0)).times(Mat4.translation(0,-300,-300));
         this.cur_camera = () => this.camera_pos_third_person;
 
         // rover pos and movement
         this.rover_pos = Mat4.identity();
+        this.rover_pos_x = 0;
+        this.rover_pos_z = 0;
+        this.rover_look_angle = 0;
         this.rover_base_lateral_speed_factor = 0.15;
         this.rover_base_spin_speed_factor = 1;
         this.rover_user_lateral_speed_factor = 1;
@@ -170,6 +175,14 @@ export class Mars_Rover extends Scene {
 
         // rover coloring
         this.init_rover_colors();
+
+        // crystals
+        this.CRYSTAL_LOCATIONS = [[0,0,10], [-50, 0, 80], [-55, 0, 80], [-60, 0, 80], [-65, 0, 80], [-70, 0, 80], [-25, 0, -62], [-15, 0, -50], [-252, 0, 0], [-4, 0, -40], [20, 0, -30], [550, 0, -300], [0,2,0], [0,4,0], [0,6,0], [0,8,0], [0,10,0], [0,12,0], [0,14,0], [0,16,0]]; // [0,0,15], [0,0,20], [0,0,25], [0,0,-10], [0,0,30], [5,0,50], [0,14,0], [0,16,0]]; // 
+        this.CRYSTAL_COLORS = [color(1, 0.43, 0.91, 0.7), color(1, 0.16, 0.16, 0.7), color(0.27, 0.58, 1, 0.7), color(0.4, 1, 0.87, 0.7), color(0.49, 1, 0.4, 0.7)];
+        this.CRYSTAL_LIVE = new Array(this.CRYSTAL_MAX_NUM).fill(true);
+
+        this.last_pos = vec4(0,0,0,1);
+        this.last_print = 0;
 
         // ************************ STATE SETUP ***************************
     }
@@ -261,33 +274,55 @@ export class Mars_Rover extends Scene {
         this.new_line();
     }
 
-    move_up()
-    {
-        let speed_factor = this.rover_user_lateral_speed_factor*this.rover_base_lateral_speed_factor;
-        this.rover_pos = this.rover_pos.times(Mat4.translation(0,speed_factor*1,0));
-    }
-
     move_left()
     {
         let speed_factor = this.rover_user_spin_speed_factor*this.rover_base_spin_speed_factor;
+
+        let dtheta = speed_factor*1*Math.PI/180;
+
+        this.rover_look_angle += dtheta;
+        
+        // for shading
         this.rover_pos = this.rover_pos.times(Mat4.rotation(speed_factor*1*Math.PI/180, 0, 1, 0));
     }
 
     move_right()
     {
         let speed_factor = this.rover_user_spin_speed_factor*this.rover_base_spin_speed_factor;
+
+        let dtheta = speed_factor*-1*Math.PI/180;
+
+        this.rover_look_angle += dtheta;
+        
+        // for shading
         this.rover_pos = this.rover_pos.times(Mat4.rotation(speed_factor*1*Math.PI/180, 0, -1, 0));
     }
 
     move_forward()
     {
         let speed_factor = this.rover_user_lateral_speed_factor*this.rover_base_lateral_speed_factor;
+
+        let dx = speed_factor*-1*Math.sin(this.rover_look_angle);
+        let dz = speed_factor*-1*Math.cos(this.rover_look_angle);
+
+        this.rover_pos_x += dx;
+        this.rover_pos_z += dz;
+        
+        // for shading
         this.rover_pos = this.rover_pos.times(Mat4.translation(0,0,speed_factor*-1));
     }
 
     move_backward()
     {
         let speed_factor = this.rover_user_lateral_speed_factor*this.rover_base_lateral_speed_factor;
+
+        let dx = speed_factor*1*Math.sin(this.rover_look_angle);
+        let dz = speed_factor*1*Math.cos(this.rover_look_angle);
+
+        this.rover_pos_x += dx;
+        this.rover_pos_z += dz;
+        
+        // for shading
         this.rover_pos = this.rover_pos.times(Mat4.translation(0,0,speed_factor*1));
     }
 
@@ -381,16 +416,19 @@ export class Mars_Rover extends Scene {
     {
         let mt_crystal = mt.times(Mat4.translation(0, -2.25, 0)).times(Mat4.scale(0.5,0.5,0.5));
 
-        // crystal record
-        const CRYSTALS = [[5,0,10], [-50, 0, 80], [-55, 0, 80], [-60, 0, 80], [-65, 0, 80], [-70, 0, 80], [-25, 0, -62], [-15, 0, -50], [-252, 0, 0], [-4, 0, -40], [20, 0, -30], [550, 0, -300]];
-        const CRYSTAL_COLORS = [color(1, 0.43, 0.91, 0.7), color(1, 0.16, 0.16, 0.7), color(0.27, 0.58, 1, 0.7), color(0.4, 1, 0.87, 0.7), color(0.49, 1, 0.4, 0.7)];
-
-        for (var i = 0; i < CRYSTALS.length; i++)
+        for (var i = 0; i < this.CRYSTAL_MAX_NUM; i++)
         {
-            let pos = CRYSTALS[i];
-            let color = CRYSTAL_COLORS[i % CRYSTAL_COLORS.length];
-            let mt_tmp = mt_crystal.times(Mat4.translation(pos[0], pos[1], pos[2]));
-            this.shapes.crystal.draw(context, program_state, mt_tmp, shadow_pass ? this.materials.crystal.override({color: color}) : this.pure);
+            if (this.CRYSTAL_LIVE[i])
+            {
+                let pos = this.CRYSTAL_LOCATIONS[i];
+                let color = this.CRYSTAL_COLORS[i % this.CRYSTAL_COLORS.length];
+                let mt_tmp = mt_crystal.times(Mat4.translation(pos[0], pos[1], pos[2]));
+                this.shapes.crystal.draw(context, program_state, mt_tmp, shadow_pass ? this.materials.crystal.override({color: color}) : this.pure);
+            }
+            else
+            {
+                //...spawn broken crystal model...
+            }
         }
 
         return mt;
@@ -402,7 +440,7 @@ export class Mars_Rover extends Scene {
         const SCALE_ROVER_BODY = 1.5;
 
         // move rover to current (relative) world position
-        let mt_rover = mt.times(this.rover_pos);
+        let mt_rover = mt.times(Mat4.translation(this.rover_pos_x, 0, this.rover_pos_z)).times(Mat4.rotation(this.rover_look_angle, 0, 1, 0));
 
         // rover pieces
         let mt_rover_body = mt_rover.times(Mat4.scale(SCALE_ROVER_BODY, SCALE_ROVER_BODY, SCALE_ROVER_BODY));
@@ -480,9 +518,10 @@ export class Mars_Rover extends Scene {
         // draw_shadow: true if we want to draw the shadow
 
         // update camera positions
-        this.camera_pos_first_person = Mat4.inverse(this.rover_pos.times(Mat4.translation(0,2,-1.5)));//Mat4.look_at(vec3(0, 10, 20), vec3(0, 5, 0), vec3(0, 1, 0));
-        this.camera_pos_third_person = Mat4.inverse(this.rover_pos.times(Mat4.translation(0,5,16.5)).times(Mat4.rotation(-Math.PI/32, 1, 0, 0)));
-        this.camera_pos_sky_third_person = Mat4.inverse(this.rover_pos.times(Mat4.translation(-3,0,12)).times(Mat4.rotation(1.5*Math.PI/32, 1, 0, 0)));
+        let mt_cam = Mat4.identity().times(Mat4.translation(this.rover_pos_x, 0, this.rover_pos_z)).times(Mat4.rotation(this.rover_look_angle,0,1,0));
+        this.camera_pos_first_person = Mat4.inverse(mt_cam.times(Mat4.translation(0,2,-1.5)));//Mat4.look_at(vec3(0, 10, 20), vec3(0, 5, 0), vec3(0, 1, 0));
+        this.camera_pos_third_person = Mat4.inverse(mt_cam.times(Mat4.translation(0,5,16.5)).times(Mat4.rotation(-Math.PI/32, 1, 0, 0)));
+        this.camera_pos_sky_third_person = Mat4.inverse(mt_cam.times(Mat4.translation(-3,0,12)).times(Mat4.rotation(1.5*Math.PI/32, 1, 0, 0)));
 
         // init mt buffers
         let mt_rover = Mat4.identity();
@@ -587,6 +626,37 @@ export class Mars_Rover extends Scene {
         this.music.pause();
     }
 
+    check_rover_crystal_collisions() {
+        //...check for collisions...
+
+        let rover_cur_pos = vec4(this.rover_pos_x, 0, this.rover_pos_z, 1);
+
+        // if (this.last_pos[0] != rover_cur_pos[0] || this.last_pos[2] != rover_cur_pos[2])
+        //     console.log("Current Rover Pos: " + String(rover_cur_pos[0]) + ", " + String(rover_cur_pos[1]) + ", " + String(rover_cur_pos[2]))
+        for (let i = 0; i < this.CRYSTAL_MAX_NUM; i++)
+        {
+            if (this.CRYSTAL_LIVE[i])
+            {
+                let crystal_pos = this.CRYSTAL_LOCATIONS[i];
+
+                //let r = Math.sqrt(Math.pow(crystal_pos[0], 2) + Math.pow(crystal_pos[2], 2));
+
+                if ((crystal_pos[0]*this.COLLISION_MAGIC_WORKY <= this.rover_pos_x + this.COLLISION_HITBOX_WIDTH) &&
+                    (crystal_pos[0]*this.COLLISION_MAGIC_WORKY >= this.rover_pos_x - this.COLLISION_HITBOX_WIDTH) &&
+                    (crystal_pos[2]*this.COLLISION_MAGIC_WORKY <= this.rover_pos_z + this.COLLISION_HITBOX_WIDTH) &&
+                    (crystal_pos[2]*this.COLLISION_MAGIC_WORKY >= this.rover_pos_z - this.COLLISION_HITBOX_WIDTH))
+                {
+                    // collect crystal
+                    this.CRYSTAL_LIVE[i] = false;
+
+                    //console.log("CRYSTAL COLLECTED: " + String(i) + " at: " + String(crystal_pos[0]) + ", " + String(crystal_pos[2]));
+                }
+            }
+        }
+
+        //this.last_pos = rover_cur_pos;
+    }
+
     display(context, program_state) {
         // update object members
         const t = this.t = program_state.animation_time / 1000; // current animation time
@@ -601,6 +671,11 @@ export class Mars_Rover extends Scene {
             this.texture_buffer_init(gl);
 
             this.init_ok = true;
+        }
+
+        if (t - this.last_print > 1) {
+            console.log("Current Rover Pos: " + String(this.rover_pos_x) + ", " + String(0) + ", " + String(this.rover_pos_z));
+            this.last_print = t;
         }
 
         if (!context.scratchpad.controls) {
@@ -633,19 +708,23 @@ export class Mars_Rover extends Scene {
             this.move_backward();
         }
 
+        // check for crystal collisions
+        this.check_rover_crystal_collisions();
+
         // lights and light properties (for use by shading)
-        let rover_cur_pos = this.rover_pos.times(vec4(0, 0, 0, 1)); // need to spawn lights relative to rover (for our "faking" shading purposes)
+        let rover_cur_pos = vec4(this.rover_pos_x, 0, this.rover_pos_z, 1); // need to spawn lights relative to rover (for our "faking" shading purposes)
         let sun_frequency = 2*Math.PI/this.sun_period;
         let angular_pos = this.enable_day_night_cycle ? t*sun_frequency : this.cur_day_night;
         let mt_sun_pre_translate = Mat4.identity().times(Mat4.translation(rover_cur_pos[0],rover_cur_pos[1],rover_cur_pos[2])).times(Mat4.rotation(angular_pos, 0, 0, 1));
-        this.tmp = mt_sun_pre_translate.times(Mat4.translation(-10,0,0));
         this.sun_light_pos = mt_sun_pre_translate.times(Mat4.translation(-1000,0,0)).times(vec4(0, 0, 0, 1));
         // const amb_light_pos = vec4(0, 100, 0, 1); // REMOVED, as shading seems to cause complications with more than 1 light source :(
 
         this.light_color = color(1,1,1,1);
         this.light_position = mt_sun_pre_translate.times(Mat4.translation(-5,0,0)).times(vec4(0, 0, 0, 1)); //Mat4.rotation(t / 1.5, 0, 1, 0).times(vec4(3, 15, 0, 1));
+        //let RELATIVE_LIGHT_LOOKAT_DIST = 10;
+        //this.light_view_target = vec4(-RELATIVE_LIGHT_LOOKAT_DIST*Math.sin(this.rover_look_angle) + rover_cur_pos[0], 0, -RELATIVE_LIGHT_LOOKAT_DIST*Math.cos(this.rover_look_angle) + rover_cur_pos[2], 1);//Mat4.translation(0, -12.5, -10).times(Mat4.translation(rover_cur_pos[0], rover_cur_pos[1], rover_cur_pos[2])).times(Mat4.rotation(this.rover_look_angle, 0, 1, 0)).times(vec4(0,0,0,1)); // This is a rough target of the light. Although the light is point light, we need a target to set the POV of the light
         this.light_view_target = this.rover_pos.times(vec4(0, -12.5, -10, 1)); // This is a rough target of the light. Although the light is point light, we need a target to set the POV of the light
-        this.light_field_of_view = 150 * Math.PI / 180; // 130 degree
+        this.light_field_of_view = 130 * Math.PI / 180; // 130 degree
 
         program_state.lights = [new Light(this.sun_light_pos, this.light_color, 10**25), new Light(this.light_position, this.light_color, 10**25)];
 
