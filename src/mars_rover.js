@@ -440,7 +440,15 @@ export class Mars_Rover extends Scene {
                 let k = this.f_move_left ? 1 : (this.f_move_right ? -1 : 0);
                 mt_tmp = mt_tmp.times(Mat4.rotation(k*Math.PI/4, 0, 1, 0));
             }
-            
+
+            // perform extra rotation transformation if moving
+            if (this.f_move_forward) {
+                mt_tmp = mt_tmp.times(Mat4.rotation(-this.t, 1, 0, 0));
+            }
+            else if (this.f_move_backward) {
+                mt_tmp = mt_tmp.times(Mat4.rotation(this.t, 1, 0, 0));
+            }
+
             this.shapes.rover_wheel_right.draw(context, program_state, mt_tmp, shadow_pass ? this.materials.rover.override({color:this.rover_body_colors[this.COLOR_ROVER_WHEEL_IDX]}): this.pure);
         }
 
