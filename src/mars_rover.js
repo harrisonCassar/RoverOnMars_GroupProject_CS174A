@@ -479,7 +479,7 @@ export class Mars_Rover extends Scene {
         }
 
         // lights and light properties (for use by shading)
-        let rover_cur_pos = this.rover_pos.times(vec4(1, 1, 1, 1)); // need to spawn lights relative to rover (for our "faking" shading purposes)
+        let rover_cur_pos = this.rover_pos.times(vec4(0, 0, 0, 1)); // need to spawn lights relative to rover (for our "faking" shading purposes)
         let sun_frequency = 2*Math.PI/this.sun_period;
         let angular_pos = this.enable_day_night_cycle ? t*sun_frequency : this.cur_day_night;
         let mt_sun_pre_translate = Mat4.identity().times(Mat4.translation(rover_cur_pos[0],rover_cur_pos[1],rover_cur_pos[2])).times(Mat4.rotation(angular_pos, 0, 0, 1));
@@ -488,8 +488,8 @@ export class Mars_Rover extends Scene {
         // const amb_light_pos = vec4(0, 100, 0, 1); // REMOVED, as shading seems to cause complications with more than 1 light source :(
 
         this.light_color = color(1,1,1,1);
-        this.light_position = mt_sun_pre_translate.times(Mat4.translation(-10,0,0)).times(vec4(0, 0, 0, 1)); //Mat4.rotation(t / 1.5, 0, 1, 0).times(vec4(3, 15, 0, 1));
-        this.light_view_target = this.rover_pos.times(vec4(0, 0, 0, 1)); // This is a rough target of the light. Although the light is point light, we need a target to set the POV of the light
+        this.light_position = mt_sun_pre_translate.times(Mat4.translation(-5,0,0)).times(vec4(0, 0, 0, 1)); //Mat4.rotation(t / 1.5, 0, 1, 0).times(vec4(3, 15, 0, 1));
+        this.light_view_target = this.rover_pos.times(vec4(0, -12.5, -10, 1)); // This is a rough target of the light. Although the light is point light, we need a target to set the POV of the light
         this.light_field_of_view = 150 * Math.PI / 180; // 130 degree
 
         program_state.lights = [new Light(this.sun_light_pos, this.light_color, 10**25), new Light(this.light_position, this.light_color, 10**25)];
