@@ -84,21 +84,48 @@ export class Mars_Rover extends Scene {
         //         {ambient: this.DEBUG ? 1.0 : 0.0, diffusivity: 0.8, specularity: 1.0, color: color(1, 0.43, 0.91, 0.7)})
         // }
 
+        // ************************ SHADOWS ***************************
+        // For the floor or other plain objects
         this.materials = {
             sky: new Material(new Textured_Phong(), {
                 color: hex_color("#000000"),
                 ambient: 1.0, diffusivity: 0.1, specularity: 0.1,
                 texture: new Texture("assets/night_sky.jpg", "NEAREST")
+            }),
+            floor: new Material(new Shadow_Textured_Phong_Shader(1), {
+                color: color(1, 1, 1, 1), ambient: .3, diffusivity: 0.6, specularity: 0.9, smoothness: 64,
+                color_texture: null,
+                light_depth_texture: null
+            }),
+            rover: new Material(new Shadow_Textured_Phong_Shader(1), {
+                color: hex_color("ffa436"),
+                ambient: this.DEBUG ? 1.0 : 0.5,
+                diffusivity: 0.6,
+                specularity: 0.9,
+                smoothness: 64,
+                color_texture: null,
+                light_depth_texture: null
+            }),
+            mars: new Material(new Shadow_Textured_Phong_Shader(1), {
+                color: hex_color("ffa436"),
+                ambient: this.DEBUG ? 1.0 : 0.3,
+                diffusivity: 0.6,
+                specularity: 0.3,
+                smoothness: 64,
+                color_texture: new Texture("assets/soil.png", "NEAREST"),
+                light_depth_texture: null
+            }),
+            crystal: new Material(new Shadow_Textured_Phong_Shader(1), {
+                color: color(1, 0.43, 0.91, 0.7),
+                ambient: this.DEBUG ? 1.0 : 0.3,
+                diffusivity: 0.8,
+                specularity: 1.0,
+                smoothness: 64,
+                color_texture: null,
+                light_depth_texture: null
             })
         }
 
-        // ************************ SHADOWS ***************************
-        // For the floor or other plain objects
-        this.floor = new Material(new Shadow_Textured_Phong_Shader(1), {
-            color: color(1, 1, 1, 1), ambient: .3, diffusivity: 0.6, specularity: 0.9, smoothness: 64,
-            color_texture: null,
-            light_depth_texture: null
-        })
         // For the first pass
         this.pure = new Material(new Color_Phong_Shader(), {
         })
@@ -134,6 +161,11 @@ export class Mars_Rover extends Scene {
         this.activated = false;
         this.hasListener = false;
 
+        this.f_move_left = false;
+        this.f_move_right = false;
+        this.f_move_forward = false;
+        this.f_move_backward = false;
+
         this.init_rover_colors();
     }
     
@@ -157,11 +189,11 @@ export class Mars_Rover extends Scene {
 
     make_control_panel() {
         // Draw the scene's buttons, setup their actions and keyboard shortcuts, and monitor live measurements.
-        this.key_triggered_button( "Move Left", [ "j" ], this.move_left );
-        this.key_triggered_button( "Move Right", [ "l" ], this.move_right );
+        this.key_triggered_button( "Move Left", [ "j" ], () => this.f_move_left = true, '#6E6460', () => this.f_move_left = false);
+        this.key_triggered_button( "Move Right", [ "l" ], () => this.f_move_right = true, '#6E6460', () => this.f_move_right = false);
         this.new_line();
-        this.key_triggered_button( "Move Forward", [ "i" ], this.move_forward );
-        this.key_triggered_button( "Move Back", [ "k" ], this.move_backward );
+        this.key_triggered_button( "Move Forward", [ "i" ], () => this.f_move_forward = true, '#6E6460', () => this.f_move_forward = false);
+        this.key_triggered_button( "Move Back", [ "k" ], () => this.f_move_backward = true, '#6E6460', () => this.f_move_backward = false);
         this.new_line();
         this.new_line();
 
@@ -185,9 +217,9 @@ export class Mars_Rover extends Scene {
         this.new_line();
 
         const day_night_cycle_controls = this.control_panel.appendChild(document.createElement("span"));
-        this.key_triggered_button("-", [ "Control", "n"], () =>
+        this.key_triggered_button("-", [ "Control", "z"], () =>
             this.sun_period -= 1.0, undefined, undefined, undefined, day_night_cycle_controls);
-        this.key_triggered_button("+", [ "Control", "m" ], () =>
+        this.key_triggered_button("+", [ "Control", "x" ], () =>
             this.sun_period += 1.0, undefined, undefined, undefined, day_night_cycle_controls);
         this.live_string(box => {
             box.textContent = " Day/Night Period: " + this.sun_period.toFixed(2)
@@ -196,9 +228,9 @@ export class Mars_Rover extends Scene {
         this.new_line();
 
         const lateral_speed_controls = this.control_panel.appendChild(document.createElement("span"));
-        this.key_triggered_button("-", [ "n" ], () =>
+        this.key_triggered_button("-", [ "Control", "v" ], () =>
             this.rover_user_lateral_speed_factor /= 1.2, undefined, undefined, undefined, lateral_speed_controls);
-        this.key_triggered_button("+", [ "m" ], () =>
+        this.key_triggered_button("+", [ "Control", "b" ], () =>
             this.rover_user_lateral_speed_factor *= 1.2, undefined, undefined, undefined, lateral_speed_controls);
         this.live_string(box => {
             box.textContent = "Lateral Speed: " + this.rover_user_lateral_speed_factor .toFixed(2)
@@ -215,6 +247,12 @@ export class Mars_Rover extends Scene {
         }, speed_controls);
         this.new_line();
         this.new_line();
+    }
+
+    move_up()
+    {
+        let speed_factor = this.rover_user_lateral_speed_factor*this.rover_base_lateral_speed_factor;
+        this.rover_pos = this.rover_pos.times(Mat4.translation(0,speed_factor*1,0));
     }
 
     move_left()
@@ -247,7 +285,11 @@ export class Mars_Rover extends Scene {
         // Bind it to TinyGraphics
         this.light_depth_texture = new Buffered_Texture(this.lightDepthTexture);
         // FOR TEXTURE, USE THIS --> this.stars.light_depth_texture = this.light_depth_texture
-        this.floor.light_depth_texture = this.light_depth_texture
+        this.materials.mars.light_depth_texture = this.light_depth_texture
+        this.materials.floor.light_depth_texture = this.light_depth_texture;
+        this.materials.rover.light_depth_texture = this.light_depth_texture;
+        this.materials.mars.light_depth_texture = this.light_depth_texture;
+        this.materials.crystal.light_depth_texture = this.light_depth_texture;
 
         this.lightDepthTextureSize = LIGHT_DEPTH_TEX_SIZE;
         gl.bindTexture(gl.TEXTURE_2D, this.lightDepthTexture);
@@ -336,7 +378,7 @@ export class Mars_Rover extends Scene {
             let pos = CRYSTALS[i];
             let color = CRYSTAL_COLORS[i % CRYSTAL_COLORS.length];
             let mt_tmp = mt_crystal.times(Mat4.translation(pos[0], pos[1], pos[2]));
-            this.shapes.crystal.draw(context, program_state, mt_tmp, shadow_pass ? this.floor.override({color: color}) : this.pure);
+            this.shapes.crystal.draw(context, program_state, mt_tmp, shadow_pass ? this.materials.crystal.override({color: color}) : this.pure);
         }
 
         return mt;
@@ -352,10 +394,10 @@ export class Mars_Rover extends Scene {
 
         // rover pieces
         let mt_rover_body = mt_rover.times(Mat4.scale(SCALE_ROVER_BODY, SCALE_ROVER_BODY, SCALE_ROVER_BODY));
-        this.shapes.rover_body.draw(context, program_state, mt_rover_body, shadow_pass ? this.floor.override({color:this.rover_body_colors[this.COLOR_ROVER_BODY_IDX]}) : this.pure);
+        this.shapes.rover_body.draw(context, program_state, mt_rover_body, shadow_pass ? this.materials.rover.override({color:this.rover_body_colors[this.COLOR_ROVER_BODY_IDX]}) : this.pure);
 
         let mt_rover_solar_panels = mt_rover.times(Mat4.translation(0.3,-0.4,1.1)).times(Mat4.scale(1.5, 1.5, 1.5));
-        this.shapes.rover_solar_panels.draw(context, program_state, mt_rover_solar_panels, shadow_pass ? this.floor.override({color:this.rover_body_colors[this.COLOR_ROVER_SOLAR_PANELS_IDX]}) : this.pure);
+        this.shapes.rover_solar_panels.draw(context, program_state, mt_rover_solar_panels, shadow_pass ? this.materials.rover.override({color:this.rover_body_colors[this.COLOR_ROVER_SOLAR_PANELS_IDX]}) : this.pure);
         
         // wheels
         let mt_rover_wheels = mt_rover.times(Mat4.scale(0.25, 0.25, 0.25));
@@ -367,7 +409,22 @@ export class Mars_Rover extends Scene {
         {
             let pos = TRANSLATION_LEFT_WHEELS[i];
             let mt_tmp = mt_rover_wheels.times(Mat4.translation(pos[0], pos[1], pos[2]));
-            this.shapes.rover_wheel_left.draw(context, program_state, mt_tmp, shadow_pass ? this.floor.override({color:this.rover_body_colors[this.COLOR_ROVER_WHEEL_IDX]}): this.pure);
+            
+            // perform extra steering transformation on front wheel (for coolness!)
+            if (i == TRANSLATION_LEFT_WHEELS.length-1) {
+                let k = this.f_move_left ? 1 : (this.f_move_right ? -1 : 0);
+                mt_tmp = mt_tmp.times(Mat4.rotation(k*Math.PI/4, 0, 1, 0));
+            }
+
+            // perform extra rotation transformation if moving
+            if (this.f_move_forward) {
+                mt_tmp = mt_tmp.times(Mat4.rotation(-this.t, 1, 0, 0));
+            }
+            else if (this.f_move_backward) {
+                mt_tmp = mt_tmp.times(Mat4.rotation(this.t, 1, 0, 0));
+            }
+
+            this.shapes.rover_wheel_left.draw(context, program_state, mt_tmp, shadow_pass ? this.materials.rover.override({color:this.rover_body_colors[this.COLOR_ROVER_WHEEL_IDX]}): this.pure);
         }
 
         // right wheels
@@ -377,15 +434,22 @@ export class Mars_Rover extends Scene {
         {
             let pos = TRANSLATION_RIGHT_WHEELS[i];
             let mt_tmp = mt_rover_wheels.times(Mat4.translation(pos[0], pos[1], pos[2]));
-            this.shapes.rover_wheel_right.draw(context, program_state, mt_tmp, shadow_pass ? this.floor.override({color:this.rover_body_colors[this.COLOR_ROVER_WHEEL_IDX]}): this.pure);
+            
+            // perform extra steering transformation on front wheel (for coolness!)
+            if (i == TRANSLATION_RIGHT_WHEELS.length-1) {
+                let k = this.f_move_left ? 1 : (this.f_move_right ? -1 : 0);
+                mt_tmp = mt_tmp.times(Mat4.rotation(k*Math.PI/4, 0, 1, 0));
+            }
+            
+            this.shapes.rover_wheel_right.draw(context, program_state, mt_tmp, shadow_pass ? this.materials.rover.override({color:this.rover_body_colors[this.COLOR_ROVER_WHEEL_IDX]}): this.pure);
         }
 
         // radio
         let mt_rover_radio = mt_rover.times(Mat4.translation(0.95,0.3,0.8)).times(Mat4.rotation(9*Math.PI/12, 0, 1, 0)).times(Mat4.scale(0.5, 0.5, 0.5));
-        this.shapes.rover_radio.draw(context, program_state, mt_rover_radio, shadow_pass ? this.floor.override({color:this.rover_body_colors[this.COLOR_ROVER_RADIO_IDX]}) : this.pure);
+        this.shapes.rover_radio.draw(context, program_state, mt_rover_radio, shadow_pass ? this.materials.rover.override({color:this.rover_body_colors[this.COLOR_ROVER_RADIO_IDX]}) : this.pure);
         
         let radio_fill = mt_rover.times(Mat4.translation(0.77,-0.1,0.702)).times(Mat4.rotation(9*Math.PI/12, 0, 1, 0)).times(Mat4.scale(0.535, 0.5, 0.125));
-        this.shapes.cube.draw(context, program_state, radio_fill, shadow_pass ? this.floor.override({color:this.rover_body_colors[this.COLOR_ROVER_RADIO_IDX]}) : this.pure);
+        this.shapes.cube.draw(context, program_state, radio_fill, shadow_pass ? this.materials.rover.override({color:this.rover_body_colors[this.COLOR_ROVER_RADIO_IDX]}) : this.pure);
 
         return mt;
     }
@@ -429,7 +493,7 @@ export class Mars_Rover extends Scene {
         this.draw_rover(context, program_state, mt_rover, shadow_pass);
 
         // draw ground
-        this.shapes.terrain.draw(context, program_state, Mat4.translation(0, 18, 0).times(Mat4.scale(300, 300, 300)), shadow_pass ? this.floor.override({color: hex_color("ffa436")}) : this.pure);
+        this.shapes.terrain.draw(context, program_state, Mat4.translation(0, 18, 0).times(Mat4.scale(300, 300, 300)), shadow_pass ? this.materials.mars.override({color: hex_color("ffa436")}) : this.pure);
 
         // draw crystals
         this.draw_crystals(context, program_state, mt_crystal, shadow_pass);
@@ -515,6 +579,26 @@ export class Mars_Rover extends Scene {
                 vec3(0, 2, 0),
                 vec3(0, 1, 0)
             )); // Locate the camera here
+        }
+
+        // update rover position as per necessary
+        if (this.f_move_left) {
+            if (this.f_move_backward) // reverse controls when moving backward (if needed)
+                this.move_right();
+            else
+                this.move_left();
+        }
+        if (this.f_move_right) {
+            if (this.f_move_backward) // reverse controls when moving backward (if needed)
+                this.move_left();
+            else
+                this.move_right();
+        }
+        if (this.f_move_forward){
+            this.move_forward();
+        }
+        if (this.f_move_backward){
+            this.move_backward();
         }
 
         // lights and light properties (for use by shading)
