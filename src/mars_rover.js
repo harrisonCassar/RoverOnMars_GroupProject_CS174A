@@ -39,6 +39,11 @@ export class Mars_Rover extends Scene {
         this.SUN_MORNING_POS = 5.5*Math.PI/4;
         this.SUN_DAY_POS = 3*Math.PI/2;
         this.SUN_NIGHT_POS = Math.PI/2;
+
+        // setup state parameters
+        this.COLOR_ROVER_BODY_IDX = 0;
+        this.COLOR_ROVER_WHEEL_IDX = 1;
+        this.COLOR_ROVER_SOLAR_PANELS_IDX = 2;
         
         // Load the model file:
         this.shapes = {
@@ -119,6 +124,25 @@ export class Mars_Rover extends Scene {
         this.music = new Audio();
         this.activated = false;
         this.hasListener = false;
+
+        this.init_rover_colors();
+    }
+    
+    get_random_color() {
+        return color(Math.random(), Math.random(), Math.random(), 1.0)
+    }
+    
+    randomize_rover_colors() {
+        for (let i = 0; i < 3; i++)
+            this.rover_body_colors[i] = this.get_random_color();
+    }
+
+    init_rover_colors() {
+        const COLOR_ROVER_BODY = hex_color("#fff652"); // yellow
+        const COLOR_ROVER_WHEEL = hex_color("#858585"); // gray
+        const COLOR_ROVER_SOLAR_PANELS = hex_color("#0015ff"); // darker blue
+
+        this.rover_body_colors = [COLOR_ROVER_BODY, COLOR_ROVER_WHEEL, COLOR_ROVER_SOLAR_PANELS];
     }
 
     make_control_panel() {
@@ -134,6 +158,11 @@ export class Mars_Rover extends Scene {
         this.key_triggered_button( "1st Person View", [ "8" ], () => this.cur_camera = () => this.camera_pos_first_person );
         this.key_triggered_button( "3rd Person View", [ "9" ], () => this.cur_camera = () => this.camera_pos_third_person );
         this.key_triggered_button( "Global View", [ "0" ], () => this.cur_camera = () => this.camera_pos_global );
+        this.new_line();
+        this.new_line();
+
+        this.key_triggered_button("Change Colors", ["e"], this.randomize_rover_colors);
+        this.key_triggered_button("Set Original Colors", ["r"], this.init_rover_colors);
         this.new_line();
         this.new_line();
 
@@ -306,9 +335,6 @@ export class Mars_Rover extends Scene {
     {
         // configurable parameters
         const SCALE_ROVER_BODY = 1.5;
-        const COLOR_ROVER_BODY = hex_color("#fff652"); // yellow
-        const COLOR_ROVER_WHEEL = hex_color("#858585"); // gray
-        const COLOR_ROVER_SOLAR_PANELS = hex_color("#0015ff"); // darker blue
         const COLOR_ROVER_RADIO = hex_color("#858585"); // gray
         const COLOR_ROVER_RADIOFILL = hex_color("#6d6d6d"); // dark gray
 
@@ -317,10 +343,10 @@ export class Mars_Rover extends Scene {
 
         // rover pieces
         let mt_rover_body = mt_rover.times(Mat4.scale(SCALE_ROVER_BODY, SCALE_ROVER_BODY, SCALE_ROVER_BODY));
-        this.shapes.rover_body.draw(context, program_state, mt_rover_body, shadow_pass ? this.floor.override({color:COLOR_ROVER_BODY}) : this.pure);
+        this.shapes.rover_body.draw(context, program_state, mt_rover_body, shadow_pass ? this.floor.override({color:this.rover_body_colors[this.COLOR_ROVER_BODY_IDX]}) : this.pure);
 
         let mt_rover_solar_panels = mt_rover.times(Mat4.translation(0.3,-0.4,1.1)).times(Mat4.scale(1.5, 1.5, 1.5));
-        this.shapes.rover_solar_panels.draw(context, program_state, mt_rover_solar_panels, shadow_pass ? this.floor.override({color:COLOR_ROVER_SOLAR_PANELS}) : this.pure);
+        this.shapes.rover_solar_panels.draw(context, program_state, mt_rover_solar_panels, shadow_pass ? this.floor.override({color:this.rover_body_colors[this.COLOR_ROVER_SOLAR_PANELS_IDX]}) : this.pure);
         
         // wheels
         let mt_rover_wheels = mt_rover.times(Mat4.scale(0.25, 0.25, 0.25));
@@ -332,7 +358,7 @@ export class Mars_Rover extends Scene {
         {
             let pos = TRANSLATION_LEFT_WHEELS[i];
             let mt_tmp = mt_rover_wheels.times(Mat4.translation(pos[0], pos[1], pos[2]));
-            this.shapes.rover_wheel_left.draw(context, program_state, mt_tmp, shadow_pass ? this.floor.override({color:COLOR_ROVER_WHEEL}): this.pure);
+            this.shapes.rover_wheel_left.draw(context, program_state, mt_tmp, shadow_pass ? this.floor.override({color:this.rover_body_colors[this.COLOR_ROVER_WHEEL_IDX]}): this.pure);
         }
 
         // right wheels
@@ -342,7 +368,7 @@ export class Mars_Rover extends Scene {
         {
             let pos = TRANSLATION_RIGHT_WHEELS[i];
             let mt_tmp = mt_rover_wheels.times(Mat4.translation(pos[0], pos[1], pos[2]));
-            this.shapes.rover_wheel_right.draw(context, program_state, mt_tmp, shadow_pass ? this.floor.override({color:COLOR_ROVER_WHEEL}): this.pure);
+            this.shapes.rover_wheel_right.draw(context, program_state, mt_tmp, shadow_pass ? this.floor.override({color:this.rover_body_colors[this.COLOR_ROVER_WHEEL_IDX]}): this.pure);
         }
 
         // radio
