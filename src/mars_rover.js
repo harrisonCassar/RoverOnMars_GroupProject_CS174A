@@ -60,10 +60,10 @@ export class Mars_Rover extends Scene {
             rover_body: new Shape_From_File("assets/rover_body.obj"),
             rover_solar_panels: new Shape_From_File("assets/rover_solar_panels.obj"),
             rover_wheel_left: new Shape_From_File("assets/rover_wheel_left.obj"),
-            rover_wheel_right: new Shape_From_File("assets/rover_wheel_right.obj")
-
+            rover_wheel_right: new Shape_From_File("assets/rover_wheel_right.obj"),
+            
             // radio
-            //...
+            rover_radio: new Shape_From_File("assets/rover_radio.obj")
         };
 
         // *** Materials
@@ -309,6 +309,8 @@ export class Mars_Rover extends Scene {
         const COLOR_ROVER_BODY = hex_color("#fff652"); // yellow
         const COLOR_ROVER_WHEEL = hex_color("#858585"); // gray
         const COLOR_ROVER_SOLAR_PANELS = hex_color("#0015ff"); // darker blue
+        const COLOR_ROVER_RADIO = hex_color("#858585"); // gray
+        const COLOR_ROVER_RADIOFILL = hex_color("#6d6d6d"); // dark gray
 
         // move rover to current (relative) world position
         let mt_rover = mt.times(this.rover_pos);
@@ -344,7 +346,11 @@ export class Mars_Rover extends Scene {
         }
 
         // radio
-        // ...
+        let mt_rover_radio = mt_rover.times(Mat4.translation(0.7,0.3,1.1)).times(Mat4.scale(0.5, 0.5, 0.5));
+        this.shapes.rover_radio.draw(context, program_state, mt_rover_radio, shadow_pass ? this.floor.override({color:COLOR_ROVER_RADIO}) : this.pure);
+        
+        let radio_fill = mt_rover.times(Mat4.translation(0.9,-0.1,1.07)).times(Mat4.scale(0.5, 0.5, 0.1));
+        this.shapes.cube.draw(context, program_state, radio_fill, shadow_pass ? this.floor.override({color:COLOR_ROVER_RADIOFILL}) : this.pure);
 
         return mt;
     }
